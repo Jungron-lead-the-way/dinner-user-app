@@ -238,7 +238,7 @@
         // CONFIGURATION SECTION
         // ====================
         // 🔧 ADMIN: Replace this with your actual Google Sheets ID
-        const SHEET_ID = '1U6EVYP0CPc3YIpT0CV33yhIlrNzk5uHYwKZRVjuNNNo';
+        const SHEET_ID = 'YOUR_GOOGLE_SHEETS_ID_HERE';
         
         // Global variables
         let currentDate = new Date();
@@ -298,7 +298,10 @@
 
         // Load applications from Google Sheets
         async function loadApplicationsFromSheet() {
-            if (!SHEET_ID || SHEET_ID === 'YOUR_GOOGLE_SHEETS_ID_HERE') return;
+            if (!SHEET_ID || SHEET_ID === 'YOUR_GOOGLE_SHEETS_ID_HERE' || SHEET_ID === 'TEST_MODE') {
+                console.log('Skipping sheet load - using test data or not configured');
+                return;
+            }
 
             showLoading(true);
             updateConnectionStatus('loading');
