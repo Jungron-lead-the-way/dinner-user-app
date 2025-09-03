@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dinner Application System</title>
+    <script src="https://cdn.tailwindcss.com?v=3.4.0"></script>
+    <script>
+        // Suppress Tailwind CDN warning in production
+        window.tailwindCDNWarning = false;
+    </script>
+    <style>
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 30;
+            white-space: nowrap;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+        }
+        .dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 20;
+            margin-top: 4px;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div class="max-w-5xl mx-auto">
+        <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2 flex items-center justify-center gap-3">
+                    📅 Dinner Application System
+                </h1>
+                <p class="text-gray-600">Apply for dinner support during overtime work</p>
+                <div id="connectionStatus" class="mt-2 text-sm">
+                    <span class="text-green-600">🟢 Ready</span>
+                </div>
+            </div>
+
+            <!-- Name input -->
+            <div class="mb-6 relative">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    👤 Employee Name
+                </label>
+                <input
+                    type="text"
+                    id="userName"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter your name"
+                />
+                <div id="nameSuggestions" class="dropdown hidden"></div>
+            </div>
+
+            <!-- Calendar header -->
+            <div class="flex justify-between items-center mb-4">
+                <button
+                    id="prevMonth"
+                    class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                    ← Previous
+                </button>
+                
+                <h2 id="monthYear" class="text-xl font-semibold text-gray-800"></h2>
+                
+                <button
+                    id="nextMonth"
+                    class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                    Next →
+                </button>
+            </div>
+
+            <!-- Monthly summary section -->
+            <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-green-800">
+                        💰 Monthly Summary
+                    </h3>
+                    <div class="flex gap-2">
+                        <button
+                            id="refreshData"
+                            class="px-3 py-1 bg-blue-200 text-blue-800 rounded hover:bg-blue-300 transition-colors"
+                        >
+                            🔄 Refresh
+                        </button>
+                        <button
+                            id="toggleSummary"
+                            class="px-3 py-1 bg-green-200 text-green-800 rounded hover:bg-green-300 transition-colors"
+                        >
+                            Show
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="summaryContent" class="mt-3 hidden"></div>
+            </div>
+
+            <!-- Calendar -->
+            <div class="calendar-grid mb-6">
+                <div class="text-center py-2 font-medium text-gray-600 bg-gray-100 rounded">Mon</div>
+                <div class="text-center py-2 font-medium text-gray-600 bg-gray-100 rounded">Tue</div>
+                <div class="text-center py-2 font-medium text-gray-600 bg-gray-100 rounded">Wed</div>
+                <div class="text-center py-2 font-medium text-gray-600 bg-gray-100 rounded">Thu</div>
+                <div class="text-center py-2 font-medium text-gray-600 bg-gray-100 rounded">Fri</div>
+                <div class="text-center py-2 font-medium text-gray-600 bg-gray-100 rounded">Sat</div>
+                <div class="text-center py-2 font-medium text-gray-600 bg-gray-100 rounded">Sun</div>
+            </div>
+            <div id="calendarDays" class="calendar-grid mb-6"></div>
+
+            <!-- Application section -->
+            <div id="applicationSection" class="text-center hidden">
+                <div class="mb-4 p-4 bg-blue-50 rounded-lg">
+                    <h3 id="selectedDateText" class="font-medium text-gray-800 mb-2"></h3>
+                    <p class="text-blue-700 font-medium flex items-center justify-center gap-2">
+                        🕐 Will you be working until after 8 PM today?
+                    </p>
+                </div>
+                
+                <button
+                    id="confirmApplication"
+                    class="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+                >
+                    Confirm Overtime Application
+                </button>
+            </div>
+
+            <!-- Loading indicator -->
+            <div id="loadingIndicator" class="text-center py-4 hidden">
+                <div class="loading mx-auto"></div>
+                <p class="mt-2 text-gray-600">Loading data...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Not Ready Modal -->
+    <div id="notReadyModal" class="modal hidden">
+        <div class="bg-white p-6 rounded-2xl max-w-md w-full mx-4 text-center">
+            <div class="text-4xl mb-4">⚠️</div>
+            <h3 class="text-lg font-semibold mb-4">System Not Ready</h3>
+            <p class="text-gray-600 mb-4">
+                The system is not yet configured by the administrator.
+                Please contact your administrator to set up the Google Sheets connection.
+            </p>
+            <button onclick="location.reload()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                Refresh Page
+            </button>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal hidden">
+        <div class="bg-white p-6 rounded-2xl max-w-sm w-full mx-4">
+            <div class="text-center">
+                <div class="text-4xl mb-4">⚠️</div>
+                <h3 class="text-lg font-semibold mb-2">Confirm Application</h3>
+                <p id="confirmText" class="text-gray-600 mb-6"></p>
+                <div class="flex gap-3">
+                    <button
+                        id="cancelConfirm"
+                        class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        id="finalConfirm"
+                        class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    >
+                        <span id="confirmButtonText">Confirm</span>
+                        <div id="confirmLoading" class="loading hidden"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="modal hidden">
+        <div class="bg-white p-6 rounded-2xl max-w-sm w-full mx-4">
+            <div class="text-center">
+                <div class="text-5xl text-green-500 mb-4">✅</div>
+                <h3 class="text-lg font-semibold mb-4 text-green-700">Application Completed!</h3>
+                <p class="text-gray-700 mb-2">
+                    The company will support you with <span class="font-bold text-green-600">$2.75</span>.
+                </p>
+                <p class="text-gray-700 font-medium">
+                    Enjoy your dinner and keep up the good work!!
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====================
+        // CONFIGURATION SECTION
+        // ====================
+        // 🔧 ADMIN: Replace this with your actual Google Sheets ID
+        const SHEET_ID = 'YOUR_GOOGLE_SHEETS_ID_HERE';
+        
+        // Global variables
+        let currentDate = new Date();
+        let selectedDate = null;
+        let applications = {};
+        let nameHistory = [];
+        let showSummary = false;
+
+        // Cambodia timezone
+        function getCambodianTime() {
+            const now = new Date();
+            return new Date(now.getTime() + (7 * 60 * 60 * 1000));
+        }
+
+        // Update current time
+        function updateCurrentTime() {
+            currentDate = getCambodianTime();
+            renderCalendar();
+        }
+
+        // Initialize
+        function init() {
+            console.log('Initializing user app...');
+            
+            // Check if system is configured
+            if (SHEET_ID === 'YOUR_GOOGLE_SHEETS_ID_HERE' || !SHEET_ID) {
+                console.log('System not configured');
+                showModal('notReadyModal');
+                return;
+            }
+            
+            console.log('Using Sheet ID:', SHEET_ID.substring(0, 10) + '...');
+            initializeApp();
+        }
+
+        // Initialize app
+        function initializeApp() {
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 60000); // Update every minute
+            loadApplicationsFromSheet();
+            setupEventListeners();
+            renderCalendar();
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            document.getElementById('prevMonth').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
+            document.getElementById('userName').addEventListener('input', handleNameInput);
+            document.getElementById('userName').addEventListener('focus', showNameSuggestionsDropdown);
+            document.getElementById('confirmApplication').addEventListener('click', handleApplicationConfirm);
+            document.getElementById('toggleSummary').addEventListener('click', toggleSummary);
+            document.getElementById('refreshData').addEventListener('click', loadApplicationsFromSheet);
+            document.getElementById('cancelConfirm').addEventListener('click', () => hideModal('confirmModal'));
+            document.getElementById('finalConfirm').addEventListener('click', confirmOvertimeApplication);
+        }
+
+        // Load applications from Google Sheets
+        async function loadApplicationsFromSheet() {
+            if (!SHEET_ID || SHEET_ID === 'YOUR_GOOGLE_SHEETS_ID_HERE') return;
+
+            showLoading(true);
+            updateConnectionStatus('loading');
+
+            try {
+                console.log('Loading data from Sheet ID:', SHEET_ID);
+                
+                // Use Google Sheets visualization API
+                const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Sheet1`;
+                console.log('Loading from URL:', url);
+                
+                const response = await fetch(url);
+                console.log('Load response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const text = await response.text();
+                console.log('Raw response sample:', text.substring(0, 200));
+                
+                // Parse Google Visualization API JSON response
+                const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/);
+                if (!jsonMatch) {
+                    throw new Error('Invalid response format from Google Sheets');
+                }
+                
+                const data = JSON.parse(jsonMatch[1]);
+                console.log('Parsed data:', data);
+                
+                if (data.status === 'error') {
+                    throw new Error(`Google Sheets error: ${data.errors[0].detailed_message}`);
+                }
+
+                const rows = data.table.rows || [];
+                console.log('Found rows:', rows.length);
+
+                // Parse applications
+                applications = {};
+                nameHistory = [];
+
+                rows.forEach((row, index) => {
+                    // Skip header row
+                    if (index === 0) return;
+                    
+                    const cells = row.c || [];
+                    if (cells.length >= 3) {
+                        const dateCell = cells[0];
+                        const nameCell = cells[1];
+                        const amountCell = cells[2];
+                        
+                        const dateStr = dateCell?.v;
+                        const name = nameCell?.v;
+                        const amount = amountCell?.v;
+                        
+                        if (dateStr && name) {
+                            // Handle date parsing
+                            let date;
+                            if (typeof dateStr === 'string') {
+                                date = new Date(dateStr);
+                            } else {
+                                // Google Sheets date format (days since Dec 30, 1899)
+                                date = new Date((dateStr - 25569) * 86400 * 1000);
+                            }
+                            
+                            if (!isNaN(date.getTime())) {
+                                const dateKey = date.toDateString();
+                                
+                                if (!applications[dateKey]) {
+                                    applications[dateKey] = [];
+                                }
+                                
+                                applications[dateKey].push({
+                                    name: name,
+                                    date: date,
+                                    amount: parseFloat(amount) || 2.75
+                                });
+
+                                // Update name history
+                                if (!nameHistory.includes(name)) {
+                                    nameHistory.push(name);
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('Processed applications:', applications);
+                console.log('Name history:', nameHistory);
+                
+                updateConnectionStatus('connected');
+                renderCalendar();
+                
+            } catch (error) {
+                console.error('Error loading applications:', error);
+                updateConnectionStatus('error');
+                
+                // Show detailed error message
+                alert(`Failed to load data: ${error.message}\n\nPlease contact your administrator or try refreshing the page.`);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Save application to local storage (will be synced by admin system)
+        async function saveApplicationToSheet(name, date, amount) {
+            try {
+                console.log('Saving application locally:', { name, date, amount });
+                
+                const dateKey = date.toDateString();
+                
+                // Add to local applications
+                if (!applications[dateKey]) {
+                    applications[dateKey] = [];
+                }
+                
+                applications[dateKey].push({
+                    name: name,
+                    date: date,
+                    amount: amount
+                });
+
+                // Update name history
+                if (!nameHistory.includes(name)) {
+                    nameHistory.push(name);
+                }
+                
+                // Show message about manual entry
+                console.log('Note: This application needs to be manually entered by administrator');
+                
+                return true;
+            } catch (error) {
+                console.error('Error saving application:', error);
+                return false;
+            }
+        }
+
+        // Show/hide loading indicator
+        function showLoading(show) {
+            const indicator = document.getElementById('loadingIndicator');
+            if (show) {
+                indicator.classList.remove('hidden');
+            } else {
+                indicator.classList.add('hidden');
+            }
+        }
+
+        // Update connection status
+        function updateConnectionStatus(status) {
+            const statusEl = document.getElementById('connectionStatus');
+            switch (status) {
+                case 'connected':
+                    statusEl.innerHTML = '<span class="text-green-600">🟢 Connected</span>';
+                    break;
+                case 'loading':
+                    statusEl.innerHTML = '<span class="text-yellow-600">🟡 Loading...</span>';
+                    break;
+                case 'error':
+                    statusEl.innerHTML = '<span class="text-red-600">🔴 Connection Error</span>';
+                    break;
+            }
+        }
+
+        // Handle name input
+        function handleNameInput(e) {
+            const value = e.target.value;
+            if (value.length > 0) {
+                const suggestions = nameHistory.filter(name => 
+                    name.toLowerCase().includes(value.toLowerCase())
+                ).slice(0, 5);
+                showNameSuggestions(suggestions);
+            } else {
+                hideNameSuggestions();
+            }
+        }
+
+        // Show name suggestions
+        function showNameSuggestions(suggestions) {
+            const dropdown = document.getElementById('nameSuggestions');
+            if (suggestions.length > 0) {
+                dropdown.innerHTML = suggestions.map(name => 
+                    `<button class="w-full px-4 py-2 text-left hover:bg-blue-50 first:rounded-t-lg last:rounded-b-lg" onclick="selectName('${name}')">${name}</button>`
+                ).join('');
+                dropdown.classList.remove('hidden');
+            } else {
+                hideNameSuggestions();
+            }
+        }
+
+        // Show suggestions dropdown
+        function showNameSuggestionsDropdown() {
+            const userName = document.getElementById('userName').value;
+            if (userName.length > 0) {
+                handleNameInput({target: {value: userName}});
+            }
+        }
+
+        // Hide name suggestions
+        function hideNameSuggestions() {
+            document.getElementById('nameSuggestions').classList.add('hidden');
+        }
+
+        // Select name from suggestions
+        function selectName(name) {
+            document.getElementById('userName').value = name;
+            hideNameSuggestions();
+        }
+
+        // Generate calendar
+        function generateCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const firstDayOfWeek = firstDay.getDay();
+            const daysInMonth = lastDay.getDate();
+
+            const calendar = [];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // Add empty cells (Monday start)
+            for (let i = 0; i < (firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1); i++) {
+                calendar.push(null);
+            }
+
+            // Add dates
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                calendar.push(date);
+            }
+
+            return calendar;
+        }
+
+        // Render calendar
+        function renderCalendar() {
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+            
+            // Update month/year display
+            document.getElementById('monthYear').textContent = 
+                `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+
+            // Generate calendar days
+            const calendar = generateCalendar();
+            const calendarDays = document.getElementById('calendarDays');
+            calendarDays.innerHTML = '';
+
+            calendar.forEach((date, index) => {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'relative';
+
+                if (!date) {
+                    dayDiv.innerHTML = '<div class="aspect-square"></div>';
+                    calendarDays.appendChild(dayDiv);
+                    return;
+                }
+
+                const dateKey = date.toDateString();
+                const hasApplication = applications[dateKey] && applications[dateKey].length > 0;
+                const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+                const isToday = date.toDateString() === new Date().toDateString();
+                const isPast = date < new Date().setHours(0, 0, 0, 0);
+
+                let className = `w-full aspect-square p-1 rounded-lg border transition-all cursor-pointer ${
+                    isSelected
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : isPast
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : hasApplication
+                        ? 'bg-green-100 border-green-300 hover:bg-green-200'
+                        : isToday
+                        ? 'bg-blue-50 border-blue-300 hover:bg-blue-100'
+                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                }`;
+
+                dayDiv.innerHTML = `
+                    <button 
+                        class="${className}"
+                        onclick="handleDateSelect('${dateKey}')"
+                        ${isPast ? 'disabled' : ''}
+                    >
+                        <div class="text-sm font-medium">${date.getDate()}</div>
+                        ${hasApplication ? `<div class="text-xs text-green-600 mt-1">${applications[dateKey].length} person${applications[dateKey].length > 1 ? 's' : ''}</div>` : ''}
+                    </button>
+                    ${hasApplication ? `
+                        <button
+                            onclick="toggleApplicantNames('${dateKey}')"
+                            class="absolute -top-1 -right-1 w-5 h-5 bg-green-500 text-white rounded-full text-xs hover:bg-green-600 transition-colors"
+                            id="eyeBtn_${dateKey}"
+                        >
+                            👁️
+                        </button>
+                        <div id="tooltip_${dateKey}" class="tooltip hidden"></div>
+                    ` : ''}
+                `;
+
+                calendarDays.appendChild(dayDiv);
+            });
+
+            updateSummarySection();
+        }
+
+        // Handle date selection
+        function handleDateSelect(dateKey) {
+            const date = new Date(dateKey);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            if (date < today) {
+                alert('Cannot select past dates.');
+                return;
+            }
+
+            selectedDate = date;
+            updateApplicationSection();
+            renderCalendar(); // Re-render to show selection
+        }
+
+        // Update application section
+        function updateApplicationSection() {
+            const section = document.getElementById('applicationSection');
+            const dateText = document.getElementById('selectedDateText');
+            
+            if (selectedDate) {
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                 'July', 'August', 'September', 'October', 'November', 'December'];
+                dateText.textContent = `Selected Date: ${monthNames[selectedDate.getMonth()]} ${selectedDate.getDate()}, ${selectedDate.getFullYear()}`;
+                section.classList.remove('hidden');
+            } else {
+                section.classList.add('hidden');
+            }
+        }
+
+        // Handle application confirmation
+        function handleApplicationConfirm() {
+            const userName = document.getElementById('userName').value.trim();
+            
+            if (!userName) {
+                alert('Please enter your name.');
+                return;
+            }
+            
+            if (!selectedDate) {
+                alert('Please select a date.');
+                return;
+            }
+            
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+            document.getElementById('confirmText').textContent = 
+                `Do you want to apply for dinner support for ${userName} on ${monthNames[selectedDate.getMonth()]} ${selectedDate.getDate()}?`;
+            
+            showModal('confirmModal');
+        }
+
+        // Confirm overtime application
+        async function confirmOvertimeApplication() {
+            const userName = document.getElementById('userName').value.trim();
+            const dateKey = selectedDate.toDateString();
+            
+            // Show loading
+            document.getElementById('confirmButtonText').classList.add('hidden');
+            document.getElementById('confirmLoading').classList.remove('hidden');
+            
+            // Check for duplicate application
+            if (applications[dateKey]) {
+                const existingApplication = applications[dateKey].find(app => app.name === userName);
+                if (existingApplication) {
+                    alert('You have already applied for this date.');
+                    hideModal('confirmModal');
+                    document.getElementById('confirmButtonText').classList.remove('hidden');
+                    document.getElementById('confirmLoading').classList.add('hidden');
+                    return;
+                }
+            }
+            
+            // Save application
+            const success = await saveApplicationToSheet(userName, selectedDate, 2.75);
+            
+            if (success) {
+                hideModal('confirmModal');
+                showModal('successModal');
+                
+                // Reset form
+                selectedDate = null;
+                document.getElementById('userName').value = '';
+                updateApplicationSection();
+                renderCalendar();
+                
+                // Show special message about manual entry
+                setTimeout(() => {
+                    hideModal('successModal');
+                    alert('📝 Note: Your application has been recorded locally.\nThe administrator will update the central system.');
+                }, 3000);
+            } else {
+                alert('Failed to save application. Please try again.');
+            }
+            
+            // Hide loading
+            document.getElementById('confirmButtonText').classList.remove('hidden');
+            document.getElementById('confirmLoading').classList.add('hidden');
+        }
+
+        // Change month
+        function changeMonth(direction) {
+            currentDate.setMonth(currentDate.getMonth() + direction);
+            renderCalendar();
+        }
+
+        // Toggle applicant names
+        function toggleApplicantNames(dateKey) {
+            const tooltip = document.getElementById(`tooltip_${dateKey}`);
+            const eyeBtn = document.getElementById(`eyeBtn_${dateKey}`);
+            
+            if (tooltip.classList.contains('hidden')) {
+                // Show names
+                const apps = applications[dateKey] || [];
+                tooltip.innerHTML = apps.map(app => `<div>${app.name}</div>`).join('');
+                tooltip.classList.remove('hidden');
+                eyeBtn.textContent = '🙈';
+            } else {
+                // Hide names
+                tooltip.classList.add('hidden');
+                eyeBtn.textContent = '👁️';
+            }
+        }
+
+        // Calculate monthly summary
+        function calculateMonthlySummary() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const monthlyApplications = Object.entries(applications).filter(([dateKey]) => {
+                const date = new Date(dateKey);
+                return date.getFullYear() === year && date.getMonth() === month;
+            });
+
+            const summary = {};
+            let totalAmount = 0;
+
+            monthlyApplications.forEach(([dateKey, apps]) => {
+                apps.forEach(app => {
+                    if (!summary[app.name]) {
+                        summary[app.name] = { count: 0, amount: 0 };
+                    }
+                    summary[app.name].count += 1;
+                    summary[app.name].amount += app.amount;
+                    totalAmount += app.amount;
+                });
+            });
+
+            return { summary, totalAmount };
+        }
+
+        // Update summary section
+        function updateSummarySection() {
+            // No export button for user version
+        }
+
+        // Toggle summary
+        function toggleSummary() {
+            const content = document.getElementById('summaryContent');
+            const btn = document.getElementById('toggleSummary');
+            
+            showSummary = !showSummary;
+            
+            if (showSummary) {
+                const { summary, totalAmount } = calculateMonthlySummary();
+                
+                let html = '<div class="grid gap-2">';
+                Object.entries(summary).forEach(([name, data]) => {
+                    html += `
+                        <div class="flex justify-between bg-white p-2 rounded">
+                            <span>${name}</span>
+                            <span>${data.count} applications - $${data.amount.toFixed(2)}</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                html += `
+                    <div class="mt-2 pt-2 border-t border-green-300">
+                        <div class="flex justify-between font-bold text-green-800">
+                            <span>Total Amount:</span>
+                            <span>$${totalAmount.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+                
+                content.innerHTML = html;
+                content.classList.remove('hidden');
+                btn.textContent = 'Hide';
+            } else {
+                content.classList.add('hidden');
+                btn.textContent = 'Show';
+            }
+        }
